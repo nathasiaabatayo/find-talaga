@@ -826,7 +826,7 @@ class _ItemsPageState extends State<ItemsPage> {
                                           color: Colors.white70, size: 64),
                                       SizedBox(height: 16),
                                       Text(
-                                        'No items yet!\nTap + to add your first item',
+                                        'Add your first item',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                             color: Colors.white70,
