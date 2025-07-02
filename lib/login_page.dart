@@ -48,6 +48,13 @@ class _LoginPageState extends State<LoginPage> {
       await user?.reload();
       user = FirebaseAuth.instance.currentUser; // get the updated user
 
+      // Update Firestore with latest emailVerified status
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'emailVerified': user.emailVerified,
+        }, SetOptions(merge: true));
+      }
+
       // Admin UID exemption
       const adminUid = 'rfjRLXif5EN8NM6VEXruH3YuqTk2';
       if (user == null || (user.uid != adminUid && !user.emailVerified)) {

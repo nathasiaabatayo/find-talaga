@@ -29,6 +29,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription<QuerySnapshot>? _itemsSubscription;
   final Map<String, StreamSubscription<QuerySnapshot>>
       _chatMessageSubscriptions = {};
+  final Map<String, String> _senderNameCache = {};
 
   @override
   void initState() {
@@ -104,6 +105,7 @@ class _HomePageState extends State<HomePage> {
                   timestamp: msgTime,
                   chatId: chatId,
                   itemId: chatDoc['itemId'],
+                  senderId: msg['senderId'],
                 );
               }
             }
@@ -153,6 +155,7 @@ class _HomePageState extends State<HomePage> {
     required DateTime timestamp,
     String? chatId,
     String? itemId,
+    String? senderId,
   }) {
     final notif = {
       'type': type,
@@ -161,12 +164,14 @@ class _HomePageState extends State<HomePage> {
       'timestamp': timestamp,
       'chatId': chatId,
       'itemId': itemId,
+      'senderId': senderId,
     };
     final same = _notifications.any((n) =>
         n['type'] == type &&
         n['chatId'] == chatId &&
         n['itemId'] == itemId &&
-        n['content'] == content);
+        n['content'] == content &&
+        n['senderId'] == senderId);
     if (!same) {
       setState(() {
         _notifications.insert(0, notif);
@@ -243,29 +248,35 @@ class _HomePageState extends State<HomePage> {
                               style: TextStyle(color: Colors.black54),
                             ),
                           )
-                        : ListView.builder(
-                            itemCount: _notifications.length,
-                            itemBuilder: (context, idx) {
-                              final notif = _notifications[idx];
-                              return ListTile(
-                                leading: notif['type'] == 'item'
-                                    ? const Icon(Icons.add_box,
-                                        color: Colors.blue)
-                                    : const Icon(Icons.message,
-                                        color: Colors.green),
-                                title: Text(notif['title'] ?? ''),
-                                subtitle: Text(notif['content'] ?? ''),
-                                trailing: Text(
-                                  notif['timestamp'] is DateTime
-                                      ? DateFormat('MMM d, h:mm a')
-                                          .format(notif['timestamp'])
-                                      : '',
-                                  style: const TextStyle(
-                                      fontSize: 11, color: Colors.black54),
-                                ),
-                                onTap: () async {
-                                  Navigator.of(context).pop();
-                                  await _onNotificationTap(notif);
+                        : FutureBuilder<List<Map<String, dynamic>>>(
+                            future: _enrichNotificationsWithSenderNames(_notifications),
+                            builder: (context, snapshot) {
+                              final notifs = snapshot.data ?? _notifications;
+                              return ListView.builder(
+                                itemCount: notifs.length,
+                                itemBuilder: (context, idx) {
+                                  final notif = notifs[idx];
+                                  String subtitle = notif['content'] ?? '';
+                                  if (notif['type'] == 'message' && notif['senderName'] != null) {
+                                    subtitle = 'From ${notif['senderName']}: ${notif['content'] ?? ''}';
+                                  }
+                                  return ListTile(
+                                    leading: notif['type'] == 'item'
+                                        ? const Icon(Icons.add_box, color: Colors.blue)
+                                        : const Icon(Icons.message, color: Colors.green),
+                                    title: Text(notif['title'] ?? ''),
+                                    subtitle: Text(subtitle),
+                                    trailing: Text(
+                                      notif['timestamp'] is DateTime
+                                          ? DateFormat('MMM d, h:mm a').format(notif['timestamp'])
+                                          : '',
+                                      style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                    ),
+                                    onTap: () async {
+                                      Navigator.of(context).pop();
+                                      await _onNotificationTap(notif);
+                                    },
+                                  );
                                 },
                               );
                             },
@@ -278,8 +289,7 @@ class _HomePageState extends State<HomePage> {
                       });
                       Navigator.of(context).pop();
                     },
-                    child: const Text('Clear All',
-                        style: TextStyle(color: Colors.red)),
+                    child: const Text('Clear All', style: TextStyle(color: Colors.red)),
                   ),
                 ],
               ),
@@ -288,6 +298,32 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _enrichNotificationsWithSenderNames(List<Map<String, dynamic>> notifications) async {
+    List<Map<String, dynamic>> enriched = [];
+    for (final notif in notifications) {
+      if (notif['type'] == 'message' && notif['senderId'] != null) {
+        String senderId = notif['senderId'];
+        String? senderName = _senderNameCache[senderId];
+        if (senderName == null) {
+          final userData = await FirestoreService.getUserProfile(senderId);
+          if (userData != null) {
+            senderName = (userData['firstName'] ?? '') + ' ' + (userData['lastName'] ?? '');
+            if ((senderName?.trim() ?? '').isEmpty) {
+              senderName = userData['username'] ?? senderId;
+            }
+            _senderNameCache[senderId] = senderName?.trim() ?? '';
+          } else {
+            senderName = senderId;
+          }
+        }
+        enriched.add({...notif, 'senderName': senderName});
+      } else {
+        enriched.add(notif);
+      }
+    }
+    return enriched;
   }
 
   void _onItemTapped(int index) {
@@ -303,6 +339,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    const adminUid = 'rfjRLXif5EN8NM6VEXruH3YuqTk2';
+    final isAdmin = user?.uid == adminUid;
     return Scaffold(
       body: [
         ItemsPage(
@@ -359,9 +398,9 @@ class _HomePageState extends State<HomePage> {
             ),
             label: 'Messages',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.person),
+            label: isAdmin ? 'Dashboard' : 'Profile',
           ),
         ],
       ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'cloudinary_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -198,120 +201,171 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final imageUrl = await CloudinaryService.uploadImage(pickedFile);
+      await _firestore.collection('users').doc(user.uid).update({
+        'profileImageUrl': imageUrl,
+      });
+      setState(() {
+        _profileImageUrl = imageUrl;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile image updated!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload image: $e')),
+      );
+    }
+  }
+
   Widget _buildProfileHeader(double screenWidth) {
     final isWide = screenWidth > 600;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        CircleAvatar(
-          radius: isWide ? 80 : 60,
-          backgroundColor: Colors.white.withOpacity(0.2),
-          backgroundImage: _profileImageUrl.isNotEmpty
-              ? NetworkImage(_profileImageUrl)
-              : null,
-          child: _profileImageUrl.isEmpty
-              ? Icon(
-                  Icons.person,
-                  size: isWide ? 80 : 60,
-                  color: Colors.white,
-                )
-              : null,
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        Stack(
+          alignment: Alignment.center,
           children: [
-            Flexible(
-              child: Text(
-                '${_firstName.isNotEmpty ? _firstName : 'First Name'} ${_lastName.isNotEmpty ? _lastName : 'Last Name'}',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: isWide ? 32 : 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () {
-                setState(() => _isEditing = true);
-              },
-              child: !_isEditing
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0B2A92),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        "Edit Profile",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+            CircleAvatar(
+              radius: isWide ? 80 : 60,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              backgroundImage: _profileImageUrl.isNotEmpty
+                  ? NetworkImage(_profileImageUrl)
+                  : null,
+              child: _profileImageUrl.isEmpty
+                  ? Icon(
+                      Icons.person,
+                      size: isWide ? 80 : 60,
+                      color: Colors.white,
                     )
-                  : const SizedBox.shrink(),
+                  : null,
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+        Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 140,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0B2A92),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  child: const Text('Change Photo'),
+                  onPressed: _pickAndUploadImage,
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 120,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0B2A92),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  child: const Text('Edit Profile'),
+                  onPressed: () {
+                    setState(() => _isEditing = true);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          '${_firstName.isNotEmpty ? _firstName : 'First Name'} ${_lastName.isNotEmpty ? _lastName : 'Last Name'}',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: isWide ? 32 : 24,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 6),
         Text(
           _email,
           style: const TextStyle(
             color: Colors.white70,
             fontSize: 16,
           ),
+          textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
         Container(
-          alignment: Alignment.centerLeft,
+          alignment: Alignment.center,
           width: isWide ? 500 : double.infinity,
           margin: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Student ID:',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                  fontSize: isWide ? 20 : 16,
-                ),
-                textAlign: TextAlign.left,
-              ),
-              Text(
-                _studentId.isNotEmpty ? _studentId : 'Not set',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: isWide ? 20 : 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.left,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Student ID: ',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: isWide ? 20 : 16,
+                    ),
+                  ),
+                  Text(
+                    _studentId.isNotEmpty ? _studentId : 'Not set',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isWide ? 20 : 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
-              Text(
-                'Course:',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                  fontSize: isWide ? 20 : 16,
-                ),
-                textAlign: TextAlign.left,
-              ),
-              Text(
-                _course.isNotEmpty ? _course : 'Not set',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: isWide ? 20 : 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.left,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Course: ',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.bold,
+                      fontSize: isWide ? 20 : 16,
+                    ),
+                  ),
+                  Text(
+                    _course.isNotEmpty ? _course : 'Not set',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isWide ? 20 : 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -518,24 +572,13 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_claimedItems.isEmpty) return const SizedBox.shrink();
 
     final isWide = screenWidth > 600;
-    final imgSize = isWide ? 80.0 : 64.0;
+    final imgSize = isWide ? 80.0 : 56.0;
+    final cardMargin = isWide ? EdgeInsets.symmetric(horizontal: 32, vertical: 12) : EdgeInsets.symmetric(horizontal: 8, vertical: 8);
+    final cardPadding = isWide ? EdgeInsets.all(22) : EdgeInsets.all(10);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Padding(
-          padding: EdgeInsets.only(top: 8, bottom: 16),
-          child: Text(
-            "Claimed Items",
-            style: TextStyle(
-              color: Colors.green,
-              fontWeight: FontWeight.bold,
-              fontSize: isWide ? 28 : 22,
-              letterSpacing: 1.2,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
         ..._claimedItems.map((item) {
           return Center(
             child: Card(
@@ -545,9 +588,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: Colors.green, width: 2),
               ),
-              margin: EdgeInsets.symmetric(horizontal: isWide ? 32 : 16, vertical: 12),
+              margin: cardMargin,
               child: Padding(
-                padding: EdgeInsets.all(isWide ? 22 : 14),
+                padding: cardPadding,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -579,7 +622,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: Icon(Icons.inventory,
                                 color: Colors.green, size: imgSize / 2),
                           ),
-                    const SizedBox(width: 18),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -589,35 +632,35 @@ class _ProfilePageState extends State<ProfilePage> {
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
-                              fontSize: isWide ? 20 : 17,
+                              fontSize: isWide ? 20 : 16,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
                             item['dateClaimed'] != null
                                 ? DateFormat('MMM dd, yyyy - hh:mm a')
                                     .format(DateTime.parse(item['dateClaimed']))
                                 : '',
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 15),
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: isWide ? 15 : 13),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           if (item['claimedBy'] != null && item['claimedBy'].toString().isNotEmpty)
                             Text(
                               'Claimed by: ${item['claimedBy']}',
                               style: TextStyle(
                                 color: Colors.lightGreenAccent,
                                 fontWeight: FontWeight.bold,
-                                fontSize: isWide ? 16 : 14,
+                                fontSize: isWide ? 16 : 13,
                               ),
                             ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Text(
                             "Item Retrieved / Claimed",
                             style: TextStyle(
                               color: Colors.green,
                               fontWeight: FontWeight.bold,
-                              fontSize: isWide ? 16 : 14,
+                              fontSize: isWide ? 16 : 13,
                             ),
                           ),
                         ],
@@ -635,20 +678,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final maxPageWidth = screenWidth > 800 ? 600.0 : double.infinity;
+    final isWide = MediaQuery.of(context).size.width > 600;
+    final user = _auth.currentUser;
     const adminUid = 'rfjRLXif5EN8NM6VEXruH3YuqTk2';
-    final isAdmin = _auth.currentUser?.uid == adminUid;
+    final isAdmin = user?.uid == adminUid;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B2A92),
       appBar: AppBar(
-        title: const Text(
-          'My Profile',
-          style: TextStyle(color: Colors.white),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: const Color(0xFF0B2A92),
+        title: Text(isAdmin ? 'Dashboard' : 'My Profile', style: const TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -656,35 +696,143 @@ class _ProfilePageState extends State<ProfilePage> {
             tooltip: 'Sign Out',
           ),
         ],
-        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: SingleChildScrollView(
-                child: Container(
-                  width: maxPageWidth,
-                  child: isAdmin
-                      ? Column(
-                          children: [
-                            const SizedBox(height: 32),
-                            _buildClaimedItemsList(screenWidth),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            const SizedBox(height: 32),
-                            _buildProfileHeader(screenWidth),
-                            const SizedBox(height: 20),
-                            _buildClaimedItemsList(screenWidth),
-                            const SizedBox(height: 32),
-                            _buildProfileForm(screenWidth),
-                          ],
-                        ),
+      body: SafeArea(
+        child: isAdmin ? _buildAdminDashboard(isWide) : _buildUserProfile(isWide),
+      ),
+    );
+  }
+
+  Widget _buildAdminDashboard(bool isWide) {
+    int _adminTab = 0;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: isWide ? 40 : 12, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _adminTab == 0 ? Colors.white : Colors.white24,
+                      foregroundColor: _adminTab == 0 ? const Color(0xFF0B2A92) : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 20),
+                      textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () => setState(() => _adminTab = 0),
+                    child: const Text('All Users'),
+                  ),
+                  const SizedBox(width: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _adminTab == 1 ? Colors.white : Colors.white24,
+                      foregroundColor: _adminTab == 1 ? const Color(0xFF0B2A92) : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 20),
+                      textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    onPressed: () => setState(() => _adminTab = 1),
+                    child: const Text('Claimed Items'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+              if (_adminTab == 0) ...[
+                const Text('All Users', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                const SizedBox(height: 18),
+                FutureBuilder<QuerySnapshot>(
+                  future: FirebaseFirestore.instance.collection('users').get(),
+                  builder: (context, snapshot) {
+                    const adminUid = 'rfjRLXif5EN8NM6VEXruH3YuqTk2';
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: Colors.white));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Text('No users found.', style: TextStyle(color: Colors.white70));
+                    }
+                    final users = snapshot.data!.docs.where((doc) => doc.id != adminUid).toList();
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: users.length,
+                      separatorBuilder: (_, __) => const Divider(color: Colors.white24),
+                      itemBuilder: (context, idx) {
+                        final data = users[idx].data() as Map<String, dynamic>;
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.white24,
+                            backgroundImage: (data['profileImageUrl'] ?? '').toString().isNotEmpty
+                                ? NetworkImage(data['profileImageUrl'])
+                                : null,
+                            child: (data['profileImageUrl'] ?? '').toString().isEmpty
+                                ? const Icon(Icons.person, color: Colors.white)
+                                : null,
+                          ),
+                          title: Text(
+                            data['username'] ?? data['email'] ?? 'Unknown',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (data['email'] != null)
+                                Text('Email: ${data['email']}', style: const TextStyle(color: Colors.white70)),
+                              if (data['id'] != null && data['id'].toString().isNotEmpty)
+                                Text('Student ID: ${data['id']}', style: const TextStyle(color: Colors.white70)),
+                              if (data['course'] != null && data['course'].toString().isNotEmpty)
+                                Text('Course: ${data['course']}', style: const TextStyle(color: Colors.white70)),
+                              if (data['role'] != null)
+                                Text('Role: ${data['role']}', style: const TextStyle(color: Colors.white70)),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+              if (_adminTab == 1) ...[
+                const Text('Claimed Items', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                const SizedBox(height: 18),
+                _buildClaimedItemsList(isWide ? 600.0 : double.infinity),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildUserProfile(bool isWide) {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : Center(
+            child: SingleChildScrollView(
+              child: Container(
+                width: isWide ? 600.0 : double.infinity,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 32),
+                    _buildProfileHeader(isWide ? 600.0 : double.infinity),
+                    const SizedBox(height: 20),
+                    _buildClaimedItemsList(isWide ? 600.0 : double.infinity),
+                    const SizedBox(height: 32),
+                    _buildProfileForm(isWide ? 600.0 : double.infinity),
+                  ],
                 ),
               ),
             ),
-    );
+          );
   }
 
   @override

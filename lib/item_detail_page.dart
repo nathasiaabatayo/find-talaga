@@ -202,10 +202,12 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
 
     // If admin, show user selection dialog
     if (_currentUid == adminUid) {
-      // Fetch all users
-      final usersSnapshot = await firestore.collection('users').get();
+      // Fetch all users who are Gmail-verified
+      final usersSnapshot = await firestore.collection('users')
+        .where('emailVerified', isEqualTo: true)
+        .get();
       final users = usersSnapshot.docs
-          .where((doc) => doc.id != adminUid)
+          .where((doc) => doc.id != adminUid && (doc.data()['email'] ?? '').endsWith('@gmail.com'))
           .map((doc) {
             final data = doc.data();
             return {

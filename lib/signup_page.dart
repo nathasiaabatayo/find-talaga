@@ -68,6 +68,7 @@ class _SignUpPageState extends State<SignUpPage> {
           'role': 'user',
           'id': '',
           'course': '',
+          'emailVerified': user.emailVerified,
         }, SetOptions(merge: true));
       }
 
